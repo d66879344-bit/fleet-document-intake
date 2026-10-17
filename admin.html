@@ -21,8 +21,13 @@
     padding: 6px 10px; font-size: 12px; text-decoration: none; color: var(--ink);
   }
   .filebtn:hover { border-color: var(--ink); }
+  .delbtn { color: var(--crit); border-color: var(--crit); }
+  .delbtn.confirm { background: var(--crit); color: #fff; }
   .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
   .toolbar select, .toolbar input { min-height: 38px; border-radius: 6px; border: 1px solid var(--line-strong); background: var(--surface-2); padding: 6px 10px; }
+  .block { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
+  .block:first-of-type { margin-top: 8px; }
+  .block-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
 </style>
 </head>
 <body>
@@ -44,8 +49,7 @@
   <section class="card" id="panel" hidden>
     <div class="toolbar">
       <select id="fCountry"><option value="">All countries</option></select>
-      <select id="fGroup"><option value="">All groups</option></select>
-      <input type="text" id="fSearch" placeholder="Search company / reference">
+      <input type="text" id="fSearch" placeholder="Search company / plate / driver">
     </div>
     <p class="status" id="panelStatus"></p>
     <ul class="list" id="list"></ul>

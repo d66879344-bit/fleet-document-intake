@@ -92,24 +92,16 @@
   };
   var COUNTRY_NAMES = {};
   (window.WORLD_COUNTRIES || []).forEach(function (row) { COUNTRY_NAMES[row[0]] = row[1]; });
-  var GROUPS = [
-    { id: "driver", label: "Driver", refLabel: "Driver name" },
-    { id: "vehicle", label: "Vehicle", refLabel: "Plate number" },
-    { id: "company", label: "Company", refLabel: "Reference", refOptional: true },
-    { id: "other", label: "Other", refLabel: "Reference", refOptional: true }
-  ];
+
+  var OTHER_SLOT = [{ id: "document", label: "Document", required: false }];
 
   var $ = function (id) { return document.getElementById(id); };
-  var state = { country: null, group: "driver", files: {} };
+  var state = { country: null, files: {} };
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
-  }
-  function slugify(s) {
-    return String(s || "").toLowerCase().trim()
-      .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "x";
   }
   function fmtSize(n) {
     if (n < 1024) return n + " B";
@@ -121,11 +113,12 @@
     var m = /\.([a-z0-9]+)$/i.exec(f.name || "");
     return m ? (EXT_TYPES[m[1].toLowerCase()] || null) : null;
   }
-
-  function slotsFor(country, group) {
-    if (group === "other") return [{ id: "document", label: "Document", required: true }];
+  function slotsFor(country, type) {
     var set = DOCS[country] || GENERIC_DOCS;
-    return set[group] || [];
+    return set[type] || [];
+  }
+  function hasFilesWithPrefix(prefix) {
+    return Object.keys(state.files).some(function (k) { return k.indexOf(prefix + "_") === 0 && state.files[k]; });
   }
 
   /* ---------- country modal ---------- */
@@ -144,66 +137,54 @@
     $("countryBar").hidden = false;
     $("formCard").hidden = false;
     closeCountryModal();
-    renderGroupTabs();
-    renderSlots();
-  }
-
-  /* ---------- group tabs ---------- */
-  function renderGroupTabs() {
-    $("groupTabs").innerHTML = GROUPS.map(function (g) {
-      return '<button type="button" class="tab" role="tab" data-g="' + g.id + '" aria-pressed="' +
-        (g.id === state.group ? "true" : "false") + '">' + esc(g.label) + "</button>";
-    }).join("");
-  }
-  function setGroup(g) {
-    state.group = g;
-    state.files = {};
-    Array.prototype.forEach.call($("groupTabs").querySelectorAll(".tab"), function (t) {
-      t.setAttribute("aria-pressed", t.getAttribute("data-g") === g ? "true" : "false");
-    });
-    var def = GROUPS.filter(function (x) { return x.id === g; })[0];
-    $("refLabel").textContent = def.refLabel + (def.refOptional ? " (optional)" : "");
-    $("ref").required = !def.refOptional;
-    $("refField").hidden = false;
-    $("otherDescField").hidden = g !== "other";
-    renderSlots();
+    renderAllSlots();
   }
 
   /* ---------- file slots ---------- */
-  function renderSlots() {
-    var defs = slotsFor(state.country, state.group);
-    $("slots").innerHTML = defs.map(function (d) {
-      return '<div class="slot" id="slot-' + d.id + '" data-id="' + d.id + '">' +
+  function renderSlotsInto(containerId, prefix, defs) {
+    var el = $(containerId);
+    if (!el) return;
+    el.innerHTML = defs.map(function (d) {
+      var fid = prefix + "_" + d.id;
+      return '<div class="slot" id="slot-' + fid + '" data-id="' + fid + '">' +
         '<div class="slot-main"><span class="slot-label">' + esc(d.label) +
         (d.required ? '<span class="req">*</span>' : "") + '</span>' +
-        '<div class="slot-file" id="slotfile-' + d.id + '">No file selected</div></div>' +
+        '<div class="slot-file" id="slotfile-' + fid + '">No file selected</div></div>' +
         '<div class="slot-actions">' +
-        '<label class="slot-btn" for="input-' + d.id + '">Choose file</label>' +
-        '<input type="file" id="input-' + d.id + '" data-id="' + d.id + '" accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,application/pdf,image/*">' +
-        '<button type="button" class="slot-btn" data-clear="' + d.id + '" hidden>Remove</button>' +
+        '<label class="slot-btn" for="input-' + fid + '">Choose file</label>' +
+        '<input type="file" id="input-' + fid + '" data-id="' + fid + '" accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,application/pdf,image/*">' +
+        '<button type="button" class="slot-btn" data-clear="' + fid + '" hidden>Remove</button>' +
         "</div></div>";
     }).join("");
   }
-  function setSlotFile(id, file, err) {
-    var slot = $("slot-" + id);
+  function renderAllSlots() {
+    renderSlotsInto("slots-company", "company", slotsFor(state.country, "company"));
+    renderSlotsInto("slots-vehicle1", "vehicle1", slotsFor(state.country, "vehicle"));
+    renderSlotsInto("slots-vehicle2", "vehicle2", slotsFor(state.country, "vehicle"));
+    renderSlotsInto("slots-driver1", "driver1", slotsFor(state.country, "driver"));
+    renderSlotsInto("slots-driver2", "driver2", slotsFor(state.country, "driver"));
+    renderSlotsInto("slots-other", "other", OTHER_SLOT);
+  }
+  function setSlotFile(fid, file, err) {
+    var slot = $("slot-" + fid);
     if (!slot) return;
-    var fileEl = $("slotfile-" + id);
+    var fileEl = $("slotfile-" + fid);
     var clearBtn = slot.querySelector("[data-clear]");
     if (err) {
-      state.files[id] = null;
+      state.files[fid] = null;
       slot.classList.remove("filled"); slot.classList.add("error");
       fileEl.innerHTML = "No file selected" + '<div class="slot-err">' + esc(err) + "</div>";
       clearBtn.hidden = true;
       return;
     }
     if (!file) {
-      delete state.files[id];
+      delete state.files[fid];
       slot.classList.remove("filled", "error");
       fileEl.textContent = "No file selected";
       clearBtn.hidden = true;
       return;
     }
-    state.files[id] = file;
+    state.files[fid] = file;
     slot.classList.add("filled"); slot.classList.remove("error");
     fileEl.textContent = file.name + " · " + fmtSize(file.size);
     clearBtn.hidden = false;
@@ -215,24 +196,54 @@
     s.className = "status" + (k ? " " + k : "");
   }
 
+  /* ---------- validation + submit ---------- */
+  function validateRequiredSlots(prefix, type, errors, blockLabel) {
+    slotsFor(state.country, type).forEach(function (d) {
+      if (d.required && !state.files[prefix + "_" + d.id]) {
+        errors.push(blockLabel + ": " + d.label);
+      }
+    });
+  }
+
   async function submit(ev) {
     ev.preventDefault();
     if (!state.country) return;
+
     var company = $("company").value.trim();
     if (!company) { setStatus("Enter the company name.", "err"); $("company").focus(); return; }
-    var def = GROUPS.filter(function (x) { return x.id === state.group; })[0];
-    var ref = $("ref").value.trim();
-    if (!def.refOptional && !ref) { setStatus("Enter the " + def.refLabel.toLowerCase() + ".", "err"); $("ref").focus(); return; }
-    if (state.group === "other" && !$("otherDesc").value.trim()) {
-      setStatus("Describe what this document is.", "err"); $("otherDesc").focus(); return;
+
+    var v1ref = $("ref-vehicle1").value.trim().toUpperCase();
+    var v2ref = $("ref-vehicle2").value.trim().toUpperCase();
+    var d1ref = $("ref-driver1").value.trim();
+    var d2ref = $("ref-driver2").value.trim();
+    var otherDesc = $("otherDesc").value.trim();
+
+    var errors = [];
+    validateRequiredSlots("company", "company", errors, "Company");
+
+    if (!v1ref) errors.push("Vehicle 1: plate number is required");
+    validateRequiredSlots("vehicle1", "vehicle", errors, "Vehicle 1");
+
+    var v2touched = !!v2ref || hasFilesWithPrefix("vehicle2");
+    if (v2touched) {
+      if (!v2ref) errors.push("Vehicle 2: plate number is required");
+      validateRequiredSlots("vehicle2", "vehicle", errors, "Vehicle 2");
     }
 
-    var slotDefs = slotsFor(state.country, state.group);
-    var missing = slotDefs.filter(function (d) { return d.required && !state.files[d.id]; });
-    if (missing.length) {
-      setStatus("Please add: " + missing.map(function (d) { return d.label; }).join(", "), "err");
+    if (!d1ref) errors.push("Driver 1: driver name is required");
+    validateRequiredSlots("driver1", "driver", errors, "Driver 1");
+
+    var d2touched = !!d2ref || hasFilesWithPrefix("driver2");
+    if (d2touched) {
+      if (!d2ref) errors.push("Driver 2: driver name is required");
+      validateRequiredSlots("driver2", "driver", errors, "Driver 2");
+    }
+
+    if (errors.length) {
+      setStatus(errors[0] + (errors.length > 1 ? " (+" + (errors.length - 1) + " more)" : ""), "err");
       return;
     }
+
     var toUpload = Object.keys(state.files).filter(function (id) { return state.files[id]; });
     if (!toUpload.length) { setStatus("Add at least one file.", "err"); return; }
 
@@ -243,23 +254,27 @@
       var fd = new FormData();
       fd.append("country", state.country);
       fd.append("countryName", COUNTRY_NAMES[state.country] || state.country);
-      fd.append("group", state.group);
       fd.append("company", company);
       fd.append("contact", $("contact").value.trim());
-      fd.append("ref", ref);
       fd.append("notes", $("notes").value.trim());
-      fd.append("otherDescription", $("otherDesc").value.trim());
-      toUpload.forEach(function (id) {
-        var file = state.files[id];
-        fd.append("file_" + id, file, file.name);
+      fd.append("otherDescription", otherDesc);
+      fd.append("vehicle1_ref", v1ref);
+      fd.append("vehicle2_ref", v2ref);
+      fd.append("driver1_ref", d1ref);
+      fd.append("driver2_ref", d2ref);
+      toUpload.forEach(function (fid) {
+        var file = state.files[fid];
+        fd.append("file_" + fid, file, file.name);
       });
       var res = await fetch("/api/upload", { method: "POST", body: fd });
       if (!res.ok) throw new Error("submit_failed");
       $("progress").textContent = "";
       setStatus("Uploaded. Thank you.", "ok");
-      $("ref").value = ""; $("notes").value = ""; $("otherDesc").value = "";
+      ["ref-vehicle1", "ref-vehicle2", "ref-driver1", "ref-driver2", "otherDesc", "notes"].forEach(function (id) {
+        $(id).value = "";
+      });
       state.files = {};
-      renderSlots();
+      renderAllSlots();
     } catch (e) {
       $("progress").textContent = "";
       setStatus("Something went wrong. Please try again.", "err");
@@ -277,24 +292,22 @@
     selectCountry(code);
   });
   $("changeCountry").addEventListener("click", openCountryModal);
-  $("groupTabs").addEventListener("click", function (e) {
-    var b = e.target.closest("[data-g]"); if (b) setGroup(b.getAttribute("data-g"));
-  });
-  $("slots").addEventListener("change", function (e) {
+
+  $("intakeForm").addEventListener("change", function (e) {
     var input = e.target.closest("input[type=file]"); if (!input) return;
-    var id = input.getAttribute("data-id");
+    var fid = input.getAttribute("data-id");
     var file = input.files && input.files[0];
     if (!file) return;
     var t = typeFor(file);
-    if (!t) { setSlotFile(id, null, "Unsupported type. Use PDF, JPG, PNG, WebP or GIF."); input.value = ""; return; }
-    if (file.size > MAX_BYTES) { setSlotFile(id, null, "Larger than 20 MB."); input.value = ""; return; }
-    setSlotFile(id, file);
+    if (!t) { setSlotFile(fid, null, "Unsupported type. Use PDF, JPG, PNG, WebP or GIF."); input.value = ""; return; }
+    if (file.size > MAX_BYTES) { setSlotFile(fid, null, "Larger than 20 MB."); input.value = ""; return; }
+    setSlotFile(fid, file);
   });
-  $("slots").addEventListener("click", function (e) {
+  $("intakeForm").addEventListener("click", function (e) {
     var b = e.target.closest("[data-clear]"); if (!b) return;
-    var id = b.getAttribute("data-clear");
-    var input = $("input-" + id); if (input) input.value = "";
-    setSlotFile(id, null);
+    var fid = b.getAttribute("data-clear");
+    var input = $("input-" + fid); if (input) input.value = "";
+    setSlotFile(fid, null);
   });
   $("intakeForm").addEventListener("submit", submit);
 

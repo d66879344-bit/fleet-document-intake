@@ -2,6 +2,7 @@
   var $ = function (id) { return document.getElementById(id); };
   var items = [];
   var secret = "";
+  var confirmId = null;
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
@@ -14,27 +15,40 @@
   }
 
   function fillFilters() {
-    var countries = {}, groups = {};
+    var countries = {};
     items.forEach(function (it) {
       countries[it.country] = it.countryName || it.country;
-      groups[it.group] = 1;
     });
     $("fCountry").innerHTML = '<option value="">All countries</option>' +
       Object.keys(countries).sort(function (a, b) { return countries[a].localeCompare(countries[b]); })
         .map(function (c) { return '<option value="' + esc(c) + '">' + esc(countries[c]) + "</option>"; }).join("");
-    $("fGroup").innerHTML = '<option value="">All groups</option>' +
-      Object.keys(groups).sort().map(function (g) { return '<option value="' + esc(g) + '">' + esc(g) + "</option>"; }).join("");
   }
 
   function matches(it) {
-    var fc = $("fCountry").value, fg = $("fGroup").value, q = $("fSearch").value.trim().toLowerCase();
+    var fc = $("fCountry").value, q = $("fSearch").value.trim().toLowerCase();
     if (fc && it.country !== fc) return false;
-    if (fg && it.group !== fg) return false;
     if (q) {
-      var hay = [it.company, it.ref, it.notes, it.otherDescription].join(" ").toLowerCase();
+      var vehicleRefs = (it.vehicles || []).map(function (v) { return v.ref; });
+      var driverRefs = (it.drivers || []).map(function (d) { return d.ref; });
+      var hay = [it.company, it.contact, it.notes, it.otherDescription]
+        .concat(vehicleRefs, driverRefs).join(" ").toLowerCase();
       if (hay.indexOf(q) === -1) return false;
     }
     return true;
+  }
+
+  function fileLinks(files) {
+    return (files || []).map(function (f) {
+      var url = "/api/admin/file?secret=" + encodeURIComponent(secret) + "&key=" + encodeURIComponent(f.key);
+      return '<a class="filebtn" href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(f.field) + "</a>";
+    }).join("");
+  }
+
+  function block(title, files) {
+    var inner = (files && files.length)
+      ? '<div class="filebtns">' + fileLinks(files) + "</div>"
+      : '<div class="row-meta">No files uploaded.</div>';
+    return '<div class="block"><div class="block-title">' + esc(title) + "</div>" + inner + "</div>";
   }
 
   function render() {
@@ -44,18 +58,35 @@
       return;
     }
     $("list").innerHTML = rows.map(function (it) {
-      var files = (it.files || []).map(function (f) {
-        var url = "/api/admin/file?secret=" + encodeURIComponent(secret) + "&key=" + encodeURIComponent(f.key);
-        return '<a class="filebtn" href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(f.field) + "</a>";
-      }).join("");
+      var delBtn = confirmId === it.id
+        ? '<button type="button" class="filebtn delbtn confirm" data-confirmdel="' + esc(it.id) + '">Confirm delete</button>' +
+          '<button type="button" class="filebtn" data-canceldel="1">Cancel</button>'
+        : '<button type="button" class="filebtn delbtn" data-askdel="' + esc(it.id) + '">Delete</button>';
+
+      var blocks = block("Company documents", it.companyFiles);
+
+      (it.vehicles || []).forEach(function (v, idx) {
+        var label = "Vehicle " + (idx + 1) + (v && v.ref ? " — " + v.ref : "");
+        blocks += block(label, v && v.files);
+      });
+
+      (it.drivers || []).forEach(function (d, idx) {
+        var label = "Driver " + (idx + 1) + (d && d.ref ? " — " + d.ref : "");
+        blocks += block(label, d && d.files);
+      });
+
+      if (it.otherDescription || (it.otherFiles && it.otherFiles.length)) {
+        var otherLabel = "Other" + (it.otherDescription ? " — " + it.otherDescription : "");
+        blocks += block(otherLabel, it.otherFiles);
+      }
+
       return '<li class="row">' +
-        '<div class="row-top"><span class="row-title">' + esc(it.company) +
-        (it.ref ? " — " + esc(it.ref) : "") + '</span><span class="row-meta">' + esc(fmtDate(it.submittedAt)) + "</span></div>" +
-        '<div class="row-meta">' + esc(it.countryName || it.country) + " · " + esc(it.group) +
+        '<div class="row-top"><span class="row-title">' + esc(it.company) + '</span><span class="row-meta">' + esc(fmtDate(it.submittedAt)) + "</span></div>" +
+        '<div class="row-meta">' + esc(it.countryName || it.country) +
         (it.contact ? " · " + esc(it.contact) : "") + "</div>" +
-        (it.otherDescription ? '<div class="row-meta">' + esc(it.otherDescription) + "</div>" : "") +
         (it.notes ? '<div class="row-meta">' + esc(it.notes) + "</div>" : "") +
-        '<div class="filebtns">' + files + "</div></li>";
+        blocks +
+        '<div class="filebtns" style="margin-top:10px;">' + delBtn + "</div></li>";
     }).join("");
   }
 
@@ -78,6 +109,37 @@
     }
   }
 
+  async function deleteItem(id) {
+    confirmId = null;
+    $("panelStatus").textContent = "Deleting…";
+    $("panelStatus").className = "status";
+    try {
+      var res = await fetch("/api/admin/delete?secret=" + encodeURIComponent(secret), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: id })
+      });
+      if (!res.ok) throw new Error("delete_failed");
+      items = items.filter(function (it) { return it.id !== id; });
+      fillFilters();
+      render();
+      $("panelStatus").textContent = "Deleted. " + items.length + " submission(s) left.";
+    } catch (e) {
+      $("panelStatus").textContent = "Could not delete. Try again.";
+      $("panelStatus").className = "status err";
+      render();
+    }
+  }
+
+  $("list").addEventListener("click", function (e) {
+    var ask = e.target.closest("[data-askdel]");
+    var cancel = e.target.closest("[data-canceldel]");
+    var confirmBtn = e.target.closest("[data-confirmdel]");
+    if (ask) { confirmId = ask.getAttribute("data-askdel"); render(); }
+    else if (cancel) { confirmId = null; render(); }
+    else if (confirmBtn) { deleteItem(confirmBtn.getAttribute("data-confirmdel")); }
+  });
+
   $("unlock").addEventListener("click", function () {
     secret = $("secret").value.trim();
     if (!secret) { $("gateStatus").textContent = "Enter the password."; return; }
@@ -88,7 +150,6 @@
     load();
   });
   $("fCountry").addEventListener("change", render);
-  $("fGroup").addEventListener("change", render);
   $("fSearch").addEventListener("input", render);
 
   try {
