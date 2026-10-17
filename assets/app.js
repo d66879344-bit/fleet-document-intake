@@ -3,9 +3,10 @@
   var OK_TYPES = { "application/pdf": "pdf", "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
   var EXT_TYPES = { pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif" };
 
+  // Country-specific document sets, keyed by ISO code. Any country not listed here
+  // falls back to GENERIC_DOCS below.
   var DOCS = {
-    nyc: {
-      label: "New York City (NYC)",
+    US: {
       driver: [
         { id: "license_front", label: "Driving license — front", required: true },
         { id: "license_back", label: "Driving license — back", required: true },
@@ -21,8 +22,7 @@
         { id: "owner_id", label: "Owner / manager ID", required: false }
       ]
     },
-    spain: {
-      label: "Spain (España)",
+    ES: {
       driver: [
         { id: "license_front", label: "Driving license — front", required: true },
         { id: "license_back", label: "Driving license — back", required: true },
@@ -39,8 +39,7 @@
         { id: "owner_id", label: "Owner / manager ID", required: false }
       ]
     },
-    greece: {
-      label: "Greece (Ελλάδα)",
+    GR: {
       driver: [
         { id: "license_front", label: "Driving license — front", required: true },
         { id: "license_back", label: "Driving license — back", required: true },
@@ -57,8 +56,7 @@
         { id: "owner_id", label: "Owner / manager ID", required: false }
       ]
     },
-    london: {
-      label: "London (UK)",
+    GB: {
       driver: [
         { id: "pco_driver", label: "PCO driver licence", required: true },
         { id: "driving_license", label: "Driving licence", required: true }
@@ -75,6 +73,25 @@
       ]
     }
   };
+  // Fallback document set for any country without a specific list above.
+  var GENERIC_DOCS = {
+    driver: [
+      { id: "license_front", label: "Driving license — front", required: true },
+      { id: "license_back", label: "Driving license — back", required: true },
+      { id: "professional_license", label: "Professional / taxi driver license", required: false }
+    ],
+    vehicle: [
+      { id: "registration", label: "Vehicle registration", required: true },
+      { id: "insurance", label: "Insurance policy", required: true }
+    ],
+    company: [
+      { id: "cert", label: "Registration certificate", required: true },
+      { id: "bank", label: "Bank details (IBAN / bank letter)", required: false },
+      { id: "owner_id", label: "Owner / manager ID", required: false }
+    ]
+  };
+  var COUNTRY_NAMES = {};
+  (window.WORLD_COUNTRIES || []).forEach(function (row) { COUNTRY_NAMES[row[0]] = row[1]; });
   var GROUPS = [
     { id: "driver", label: "Driver", refLabel: "Driver name" },
     { id: "vehicle", label: "Vehicle", refLabel: "Plate number" },
@@ -107,23 +124,23 @@
 
   function slotsFor(country, group) {
     if (group === "other") return [{ id: "document", label: "Document", required: true }];
-    var c = DOCS[country];
-    return (c && c[group]) || [];
+    var set = DOCS[country] || GENERIC_DOCS;
+    return set[group] || [];
   }
 
   /* ---------- country modal ---------- */
-  function renderCountryGrid() {
-    var html = Object.keys(DOCS).map(function (k) {
-      return '<button type="button" class="country-opt" data-c="' + k + '">' + esc(DOCS[k].label) + "</button>";
-    }).join("");
-    $("countryGrid").innerHTML = html;
+  function renderCountrySelect() {
+    var rows = (window.WORLD_COUNTRIES || []).slice();
+    var html = '<option value="" disabled selected>Select a country…</option>' +
+      rows.map(function (r) { return '<option value="' + esc(r[0]) + '">' + esc(r[1]) + "</option>"; }).join("");
+    $("countrySelect").innerHTML = html;
   }
   function openCountryModal() { $("countryModal").hidden = false; }
   function closeCountryModal() { $("countryModal").hidden = true; }
-  function selectCountry(c) {
-    state.country = c;
+  function selectCountry(code) {
+    state.country = code;
     state.files = {};
-    $("countryLabel").textContent = DOCS[c].label;
+    $("countryLabel").textContent = COUNTRY_NAMES[code] || code;
     $("countryBar").hidden = false;
     $("formCard").hidden = false;
     closeCountryModal();
@@ -225,6 +242,7 @@
     try {
       var fd = new FormData();
       fd.append("country", state.country);
+      fd.append("countryName", COUNTRY_NAMES[state.country] || state.country);
       fd.append("group", state.group);
       fd.append("company", company);
       fd.append("contact", $("contact").value.trim());
@@ -251,9 +269,12 @@
   }
 
   /* ---------- wiring ---------- */
-  renderCountryGrid();
-  $("countryGrid").addEventListener("click", function (e) {
-    var b = e.target.closest("[data-c]"); if (b) selectCountry(b.getAttribute("data-c"));
+  renderCountrySelect();
+  $("countryContinue").addEventListener("click", function () {
+    var code = $("countrySelect").value;
+    if (!code) { $("countryModalErr").textContent = "Please select a country."; return; }
+    $("countryModalErr").textContent = "";
+    selectCountry(code);
   });
   $("changeCountry").addEventListener("click", openCountryModal);
   $("groupTabs").addEventListener("click", function (e) {

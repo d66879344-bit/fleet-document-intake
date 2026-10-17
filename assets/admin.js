@@ -15,9 +15,13 @@
 
   function fillFilters() {
     var countries = {}, groups = {};
-    items.forEach(function (it) { countries[it.country] = 1; groups[it.group] = 1; });
+    items.forEach(function (it) {
+      countries[it.country] = it.countryName || it.country;
+      groups[it.group] = 1;
+    });
     $("fCountry").innerHTML = '<option value="">All countries</option>' +
-      Object.keys(countries).sort().map(function (c) { return '<option value="' + esc(c) + '">' + esc(c) + "</option>"; }).join("");
+      Object.keys(countries).sort(function (a, b) { return countries[a].localeCompare(countries[b]); })
+        .map(function (c) { return '<option value="' + esc(c) + '">' + esc(countries[c]) + "</option>"; }).join("");
     $("fGroup").innerHTML = '<option value="">All groups</option>' +
       Object.keys(groups).sort().map(function (g) { return '<option value="' + esc(g) + '">' + esc(g) + "</option>"; }).join("");
   }
@@ -47,7 +51,7 @@
       return '<li class="row">' +
         '<div class="row-top"><span class="row-title">' + esc(it.company) +
         (it.ref ? " — " + esc(it.ref) : "") + '</span><span class="row-meta">' + esc(fmtDate(it.submittedAt)) + "</span></div>" +
-        '<div class="row-meta">' + esc(it.country) + " · " + esc(it.group) +
+        '<div class="row-meta">' + esc(it.countryName || it.country) + " · " + esc(it.group) +
         (it.contact ? " · " + esc(it.contact) : "") + "</div>" +
         (it.otherDescription ? '<div class="row-meta">' + esc(it.otherDescription) + "</div>" : "") +
         (it.notes ? '<div class="row-meta">' + esc(it.notes) + "</div>" : "") +

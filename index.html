@@ -62,10 +62,16 @@
   <div class="modal">
     <h2>Select country</h2>
     <p>This decides which documents we ask for.</p>
-    <div class="country-grid" id="countryGrid"></div>
+    <div class="field">
+      <label for="countrySelect">Country</label>
+      <select id="countrySelect"></select>
+    </div>
+    <p class="status err" id="countryModalErr"></p>
+    <button type="button" class="btn" id="countryContinue">Continue</button>
   </div>
 </div>
 
+<script src="/assets/countries.js"></script>
 <script src="/assets/app.js"></script>
 </body>
 </html>
