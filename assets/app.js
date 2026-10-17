@@ -198,22 +198,6 @@
     s.className = "status" + (k ? " " + k : "");
   }
 
-  async function uploadOne(id, file) {
-    var ct = typeFor(file);
-    var key = "uploads/" + state.country + "/" + state.group + "/" +
-      slugify($("company").value) + "/" + Date.now() + "-" + id + "-" + slugify(file.name.replace(/\.[^.]+$/, "")) +
-      "." + (OK_TYPES[ct] || "bin");
-    var pres = await fetch("/api/presign", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key: key, contentType: ct })
-    });
-    if (!pres.ok) throw new Error("presign_failed");
-    var presData = await pres.json();
-    var put = await fetch(presData.uploadUrl, { method: "PUT", headers: { "Content-Type": ct }, body: file });
-    if (!put.ok) throw new Error("upload_failed");
-    return { field: id, key: presData.key, filename: file.name, size: file.size, contentType: ct };
-  }
-
   async function submit(ev) {
     ev.preventDefault();
     if (!state.country) return;
@@ -237,22 +221,21 @@
 
     $("submitBtn").disabled = true;
     setStatus("", "");
-    var uploaded = [], i = 0;
+    $("progress").textContent = "Uploading " + toUpload.length + (toUpload.length === 1 ? " file…" : " files…");
     try {
-      for (i = 0; i < toUpload.length; i++) {
-        $("progress").textContent = "Uploading " + (i + 1) + " of " + toUpload.length + "…";
-        var rec = await uploadOne(toUpload[i], state.files[toUpload[i]]);
-        uploaded.push(rec);
-      }
-      $("progress").textContent = "Saving…";
-      var res = await fetch("/api/submit", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          country: state.country, group: state.group, company: company,
-          contact: $("contact").value.trim(), ref: ref, notes: $("notes").value.trim(),
-          otherDescription: $("otherDesc").value.trim(), files: uploaded
-        })
+      var fd = new FormData();
+      fd.append("country", state.country);
+      fd.append("group", state.group);
+      fd.append("company", company);
+      fd.append("contact", $("contact").value.trim());
+      fd.append("ref", ref);
+      fd.append("notes", $("notes").value.trim());
+      fd.append("otherDescription", $("otherDesc").value.trim());
+      toUpload.forEach(function (id) {
+        var file = state.files[id];
+        fd.append("file_" + id, file, file.name);
       });
+      var res = await fetch("/api/upload", { method: "POST", body: fd });
       if (!res.ok) throw new Error("submit_failed");
       $("progress").textContent = "";
       setStatus("Uploaded. Thank you.", "ok");
