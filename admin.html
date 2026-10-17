@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fleet Document Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/assets/style.css">
+<style>
+  .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+  .row { display: flex; flex-direction: column; gap: 6px; padding: 14px 0; border-top: 1px solid var(--line); }
+  .row:first-child { border-top: 0; }
+  .row-top { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .row-title { font-weight: 600; }
+  .row-meta { font-size: 13px; color: var(--ink-2); }
+  .filebtns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+  .filebtn {
+    border: 1px solid var(--line-strong); background: var(--surface-2); border-radius: 6px;
+    padding: 6px 10px; font-size: 12px; text-decoration: none; color: var(--ink);
+  }
+  .filebtn:hover { border-color: var(--ink); }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+  .toolbar select, .toolbar input { min-height: 38px; border-radius: 6px; border: 1px solid var(--line-strong); background: var(--surface-2); padding: 6px 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="head">
+    <span class="eyebrow">Admin</span>
+    <h1>Uploaded Documents</h1>
+  </header>
+
+  <section class="card" id="gate">
+    <div class="field">
+      <label for="secret">Admin password</label>
+      <input type="text" id="secret" autocomplete="off">
+    </div>
+    <button type="button" class="btn" id="unlock">View documents</button>
+    <p class="status err" id="gateStatus"></p>
+  </section>
+
+  <section class="card" id="panel" hidden>
+    <div class="toolbar">
+      <select id="fCountry"><option value="">All countries</option></select>
+      <select id="fGroup"><option value="">All groups</option></select>
+      <input type="text" id="fSearch" placeholder="Search company / reference">
+    </div>
+    <p class="status" id="panelStatus"></p>
+    <ul class="list" id="list"></ul>
+  </section>
+</div>
+
+<script src="/assets/admin.js"></script>
+</body>
+</html>
